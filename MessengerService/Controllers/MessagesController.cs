@@ -20,14 +20,18 @@ namespace MessengerService.Controllers
             _context = context;
         }
 
-        // GET: api/Messages
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Message>>> GetMessages()
         {
             return await _context.Messages.ToListAsync();
         }
 
-        // GET: api/Messages/5
+        [HttpGet("timeframe")]
+        public async Task<ActionResult<IEnumerable<Message>>> GetMessagesTimeframe(DateTime? start, DateTime? end)
+        {
+            return await _context.Messages.Where(x => x.SentTimestamp >= start && x.SentTimestamp <= end).ToListAsync();
+        }
+
         [HttpGet("{id}")]
         public async Task<ActionResult<Message>> GetMessage(Guid id)
         {
@@ -41,48 +45,89 @@ namespace MessengerService.Controllers
             return message;
         }
 
-        // PUT: api/Messages/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutMessage(Guid id, Message message)
+        [HttpGet("users")]
+        public async Task<ActionResult<IEnumerable<string>>> GetUsers()
         {
-            if (id != message.ID)
+            return await _context.Messages.Select(x => x.RecipientAddress).Distinct().ToListAsync();
+        }
+
+        [HttpGet("users/{userAddress}")]
+        public async Task<ActionResult<IEnumerable<Message>>> GetUserMessages(string userAddress)
+        {
+            return await _context.Messages.Where(x => x.RecipientAddress == userAddress).ToListAsync();
+        }
+
+        [HttpGet("users/{userAddress}/timeframe")]
+        public async Task<ActionResult<IEnumerable<Message>>> GetUserMessagesTimeframe(string userAddress, DateTime? start, DateTime? end)
+        {
+            return await _context.Messages.Where(x => x.RecipientAddress == userAddress && x.SentTimestamp >= start && x.SentTimestamp <= end).ToListAsync();
+        }
+
+        [HttpGet("users/{userAddress}/unread")]
+        public async Task<ActionResult<IEnumerable<Message>>> GetUserMessagesUnread(string userAddress)
+        {
+            return await _context.Messages.Where(x => x.RecipientAddress == userAddress && x.ReadTimestamp == null).ToListAsync();
+        }
+
+        [HttpGet("users/{userAddress}/unread/timeframe")]
+        public async Task<ActionResult<IEnumerable<Message>>> GetUserMessagesUnreadTimeframe(string userAddress, DateTime? start, DateTime? end)
+        {
+            return await _context.Messages.Where(x => x.RecipientAddress == userAddress && x.ReadTimestamp == null && x.SentTimestamp >= start && x.SentTimestamp <= end).ToListAsync();
+        }
+
+        [HttpPatch("mark-read")]
+        public async Task<IActionResult> MarkRead(params Guid[] idList)
+        {
+            var messages = _context.Messages.Where(x => idList.Contains(x.ID));
+
+            if (messages.Count() == 0)
             {
-                return BadRequest();
+                return NotFound();
             }
 
-            _context.Entry(message).State = EntityState.Modified;
+            foreach (var message in messages)
+            {
+                message.ReadTimestamp = DateTime.UtcNow;
+                _context.Entry(message).State = EntityState.Modified;
+            }
 
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!MessageExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
+            await _context.SaveChangesAsync();
 
             return NoContent();
         }
 
-        // POST: api/Messages
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPost]
-        public async Task<ActionResult<Message>> PostMessage(string content, string recipientAddress)
+        [HttpPatch("mark-unread")]
+        public async Task<IActionResult> MarkUnread(params Guid[] idList)
         {
+            var messages = _context.Messages.Where(x => idList.Contains(x.ID));
+
+            if (messages.Count() == 0)
+            {
+                return NotFound();
+            }
+
+            foreach (var message in messages)
+            {
+                message.ReadTimestamp = null;
+                _context.Entry(message).State = EntityState.Modified;
+            }
+
+            await _context.SaveChangesAsync();
+
+            //TODO: Return a report of message IDs not found?
+            return NoContent();
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<Message>> SendMessage(string content, string recipientAddress)
+        {
+            //TODO: Require that recipient address matches a specification (Email address?)
             var message = new Message
             {
                 ID = Guid.NewGuid(),
                 RecipientAddress = recipientAddress,
                 Content = content,
-                SentTimestamp = DateTime.Now,
+                SentTimestamp = DateTime.UtcNow,
             };
             _context.Messages.Add(message);
             await _context.SaveChangesAsync();
@@ -90,19 +135,26 @@ namespace MessengerService.Controllers
             return CreatedAtAction(nameof(GetMessage), new { id = message.ID }, message);
         }
 
-        // DELETE: api/Messages/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteMessage(Guid id)
         {
-            var message = await _context.Messages.FindAsync(id);
-            if (message == null)
+            return await DeleteMessages([id]);
+        }
+
+        [HttpDelete]
+        public async Task<IActionResult> DeleteMessages(Guid[] idList)
+        {
+            var messages = _context.Messages.Where(x => idList.Contains(x.ID));
+            if (messages.Count() == 0)
             {
                 return NotFound();
             }
 
-            _context.Messages.Remove(message);
+            _context.Messages.RemoveRange(messages);
             await _context.SaveChangesAsync();
 
+
+            //TODO: Return a report of message IDs not found?
             return NoContent();
         }
 
