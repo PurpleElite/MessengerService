@@ -26,7 +26,7 @@ namespace MessengerService.Controllers
             return await GetMessagesHelper(start, end);
         }
 
-        [HttpGet("{id}")]
+        [HttpGet("{id:Guid}")]
         public async Task<ActionResult<Message>> GetMessage(Guid id)
         {
             var message = await _context.Messages.FindAsync(id);
@@ -45,13 +45,13 @@ namespace MessengerService.Controllers
             return await _context.Messages.Select(x => x.RecipientAddress).Distinct().ToListAsync();
         }
 
-        [HttpGet("recipients/{userAddress}/{start:datetime?}/{end:datetime?}")]
+        [HttpGet("recipients/{userAddress:string}/{start:datetime?}/{end:datetime?}")]
         public async Task<ActionResult<IEnumerable<Message>>> GetUserMessages(string userAddress, DateTime? start, DateTime? end)
         {
             return await GetMessagesHelper(start, end, userAddress);
         }
 
-        [HttpGet("recipients/{userAddress}/unread/{start:datetime?}/{end:datetime?}")]
+        [HttpGet("recipients/{userAddress:string}/unread/{start:datetime?}/{end:datetime?}")]
         public async Task<ActionResult<IEnumerable<Message>>> GetUserMessagesUnreadTimeframe(string userAddress, DateTime? start, DateTime? end)
         {
             return await GetMessagesHelper(start, end, userAddress, true);
@@ -121,7 +121,7 @@ namespace MessengerService.Controllers
             return CreatedAtAction(nameof(GetMessage), new { id = message.ID }, message);
         }
 
-        [HttpDelete("{id}")]
+        [HttpDelete("{id:Guid}")]
         public async Task<ActionResult<IEnumerable<Guid>>> DeleteMessage(Guid id)
         {
             var message = await _context.Messages.FindAsync(id);
