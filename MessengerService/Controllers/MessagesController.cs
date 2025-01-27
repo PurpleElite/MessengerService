@@ -21,16 +21,10 @@ namespace MessengerService.Controllers
             _context = context;
         }
 
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<Message>>> GetMessages()
+        [HttpGet("{start:datetime?}/{end:datetime?}")]
+        public async Task<ActionResult<IEnumerable<Message>>> GetMessages(DateTime? start = null, DateTime? end = null)
         {
-            return await _context.Messages.ToListAsync();
-        }
-
-        [HttpGet("timeframe")]
-        public async Task<ActionResult<IEnumerable<Message>>> GetMessagesTimeframe(DateTime? start, DateTime? end)
-        {
-            return await _context.Messages.Where(x => x.SentTimestamp >= start && x.SentTimestamp <= end).ToListAsync();
+            return await GetMessagesHelper(start, end);
         }
 
         [HttpGet("{id}")]
@@ -52,28 +46,16 @@ namespace MessengerService.Controllers
             return await _context.Messages.Select(x => x.RecipientAddress).Distinct().ToListAsync();
         }
 
-        [HttpGet("users/{userAddress}")]
-        public async Task<ActionResult<IEnumerable<Message>>> GetUserMessages(string userAddress)
+        [HttpGet("users/{userAddress}/{start:datetime?}/{end:datetime?}")]
+        public async Task<ActionResult<IEnumerable<Message>>> GetUserMessages(string userAddress, DateTime? start, DateTime? end)
         {
-            return await _context.Messages.Where(x => x.RecipientAddress == userAddress).ToListAsync();
+            return await GetMessagesHelper(start, end, userAddress);
         }
 
-        [HttpGet("users/{userAddress}/timeframe")]
-        public async Task<ActionResult<IEnumerable<Message>>> GetUserMessagesTimeframe(string userAddress, DateTime? start, DateTime? end)
-        {
-            return await _context.Messages.Where(x => x.RecipientAddress == userAddress && x.SentTimestamp >= start && x.SentTimestamp <= end).ToListAsync();
-        }
-
-        [HttpGet("users/{userAddress}/unread")]
-        public async Task<ActionResult<IEnumerable<Message>>> GetUserMessagesUnread(string userAddress)
-        {
-            return await _context.Messages.Where(x => x.RecipientAddress == userAddress && x.ReadTimestamp == null).ToListAsync();
-        }
-
-        [HttpGet("users/{userAddress}/unread/timeframe")]
+        [HttpGet("users/{userAddress}/unread/{start:datetime?}/{end:datetime?}")]
         public async Task<ActionResult<IEnumerable<Message>>> GetUserMessagesUnreadTimeframe(string userAddress, DateTime? start, DateTime? end)
         {
-            return await _context.Messages.Where(x => x.RecipientAddress == userAddress && x.ReadTimestamp == null && x.SentTimestamp >= start && x.SentTimestamp <= end).ToListAsync();
+            return await GetMessagesHelper(start, end, userAddress, true);
         }
 
         [HttpPatch("mark-read")]
@@ -141,7 +123,7 @@ namespace MessengerService.Controllers
         }
 
         [HttpDelete("{id}")]
-        public async Task<ActionResult<IEnumerable<Guid>>>  DeleteMessage(Guid id)
+        public async Task<ActionResult<IEnumerable<Guid>>> DeleteMessage(Guid id)
         {
             return await DeleteMessages([id]);
         }
@@ -159,6 +141,16 @@ namespace MessengerService.Controllers
             await _context.SaveChangesAsync();
 
             return await messages.Select(x => x.ID).ToListAsync();
+        }
+
+        private async Task<ActionResult<IEnumerable<Message>>> GetMessagesHelper(DateTime? start = null, DateTime? end = null, string? userAddress = null, bool? unread = null)
+        {
+            return await _context.Messages.Where(x => 
+                (userAddress == null || x.RecipientAddress == userAddress) 
+                && (unread == null || (unread == true && x.ReadTimestamp == null) || (unread == false && x.ReadTimestamp != null)) 
+                && (start == null || x.SentTimestamp >= start) 
+                && (end == null || x.SentTimestamp <= end))
+                .OrderByDescending(x => x.SentTimestamp).ToListAsync();
         }
 
         private static bool EmailIsValid(string address)
