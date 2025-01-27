@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MessengerService.Models;
+using System.Net.Mail;
 
 namespace MessengerService.Controllers
 {
@@ -97,7 +98,7 @@ namespace MessengerService.Controllers
         }
 
         [HttpPatch("mark-unread")]
-        public async Task<IActionResult> MarkUnread(params Guid[] idList)
+        public async Task<ActionResult<IEnumerable<Guid>>> MarkUnread(params Guid[] idList)
         {
             var messages = _context.Messages.Where(x => idList.Contains(x.ID));
 
@@ -114,18 +115,22 @@ namespace MessengerService.Controllers
 
             await _context.SaveChangesAsync();
 
-            //TODO: Return a report of message IDs not found?
-            return NoContent();
+            return await messages.Select(x => x.ID).ToListAsync();
         }
 
         [HttpPost]
-        public async Task<ActionResult<Message>> SendMessage(string content, string recipientAddress)
+        public async Task<ActionResult<Message>> SendMessage(string content, string recipientAddress, string senderAddress)
         {
-            //TODO: Require that recipient address matches a specification (Email address?)
+            if (!EmailIsValid(recipientAddress) || !EmailIsValid(senderAddress))
+            {
+                return BadRequest("Invalid email address received.");
+            }
+
             var message = new Message
             {
                 ID = Guid.NewGuid(),
                 RecipientAddress = recipientAddress,
+                SenderAddress = senderAddress,
                 Content = content,
                 SentTimestamp = DateTime.UtcNow,
             };
@@ -136,13 +141,13 @@ namespace MessengerService.Controllers
         }
 
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteMessage(Guid id)
+        public async Task<ActionResult<IEnumerable<Guid>>>  DeleteMessage(Guid id)
         {
             return await DeleteMessages([id]);
         }
 
         [HttpDelete]
-        public async Task<IActionResult> DeleteMessages(Guid[] idList)
+        public async Task<ActionResult<IEnumerable<Guid>>> DeleteMessages(Guid[] idList)
         {
             var messages = _context.Messages.Where(x => idList.Contains(x.ID));
             if (messages.Count() == 0)
@@ -153,14 +158,19 @@ namespace MessengerService.Controllers
             _context.Messages.RemoveRange(messages);
             await _context.SaveChangesAsync();
 
-
-            //TODO: Return a report of message IDs not found?
-            return NoContent();
+            return await messages.Select(x => x.ID).ToListAsync();
         }
 
-        private bool MessageExists(Guid id)
+        private static bool EmailIsValid(string address)
         {
-            return _context.Messages.Any(e => e.ID == id);
+            if (MailAddress.TryCreate(address, out var parsedEmail))
+            {
+                return address == parsedEmail.Address;
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 }
