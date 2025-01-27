@@ -142,14 +142,27 @@ namespace MessengerService.Controllers
             return await messages.Select(x => x.ID).ToListAsync();
         }
 
-        private async Task<ActionResult<IEnumerable<Message>>> GetMessagesHelper(DateTime? start = null, DateTime? end = null, string? userAddress = null, bool? unread = null)
+        private async Task<ActionResult<IEnumerable<Message>>> GetMessagesHelper(DateTime? start = null, DateTime? end = null, string? userAddress = null, bool? unread = null, bool markAsRead = false)
         {
-            return await _context.Messages.Where(x => 
-                (userAddress == null || x.RecipientAddress == userAddress) 
-                && (unread == null || (unread == true && x.ReadTimestamp == null) || (unread == false && x.ReadTimestamp != null)) 
-                && (start == null || x.SentTimestamp >= start) 
+            var messages = _context.Messages.Where(x =>
+                (userAddress == null || x.RecipientAddress == userAddress)
+                && (unread == null || (unread == true && x.ReadTimestamp == null) || (unread == false && x.ReadTimestamp != null))
+                && (start == null || x.SentTimestamp >= start)
                 && (end == null || x.SentTimestamp <= end))
-                .OrderByDescending(x => x.SentTimestamp).ToListAsync();
+                .OrderByDescending(x => x.SentTimestamp);
+
+            // Extra code for if we want messages to automatically be marked as read as soon as they're retrieved. Currently markAsRead is always false.
+            if (markAsRead)
+            {
+                foreach (var message in messages)
+                {
+                    message.ReadTimestamp = DateTime.UtcNow;
+                    _context.Entry(message).State = EntityState.Modified;
+                }
+                await _context.SaveChangesAsync();
+            }
+
+            return await messages.ToListAsync();
         }
 
         private static bool EmailIsValid(string address)
