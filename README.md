@@ -1,5 +1,7 @@
 A simple service for sending and retrieving messages. Messages are stored in a pre-populated in-memory database and contain the address of the recipient and sender, a plaintext string of text, a timestamp of when the message was sent, and a timestamp of when the message was marked as read. All interactions with the database are done through a Rest API.
 
+An .exe can be downloaded here: https://github.com/PurpleElite/MessengerService/releases/tag/1.0.0
+
 ## Endpoints:
 **GET: api/Messages/{start:datetime?}/{end:datetime?}**\
 Displays all messages with the option to only grab messages before and/or after given dates.
