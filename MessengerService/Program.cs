@@ -25,7 +25,6 @@ builder.Services.AddDbContext<MessengerDbContext>(opt => opt.UseInMemoryDatabase
     
     context.SaveChanges();
 }));
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 

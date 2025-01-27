@@ -39,26 +39,26 @@ namespace MessengerService.Controllers
             return message;
         }
 
-        [HttpGet("users")]
+        [HttpGet("recipients")]
         public async Task<ActionResult<IEnumerable<string>>> GetUsers()
         {
             return await _context.Messages.Select(x => x.RecipientAddress).Distinct().ToListAsync();
         }
 
-        [HttpGet("users/{userAddress}/{start:datetime?}/{end:datetime?}")]
+        [HttpGet("recipients/{userAddress}/{start:datetime?}/{end:datetime?}")]
         public async Task<ActionResult<IEnumerable<Message>>> GetUserMessages(string userAddress, DateTime? start, DateTime? end)
         {
             return await GetMessagesHelper(start, end, userAddress);
         }
 
-        [HttpGet("users/{userAddress}/unread/{start:datetime?}/{end:datetime?}")]
+        [HttpGet("recipients/{userAddress}/unread/{start:datetime?}/{end:datetime?}")]
         public async Task<ActionResult<IEnumerable<Message>>> GetUserMessagesUnreadTimeframe(string userAddress, DateTime? start, DateTime? end)
         {
             return await GetMessagesHelper(start, end, userAddress, true);
         }
 
         [HttpPatch("mark-read")]
-        public async Task<IActionResult> MarkRead(params Guid[] idList)
+        public async Task<ActionResult<IEnumerable<Guid>>> MarkRead(params Guid[] idList)
         {
             var messages = _context.Messages.Where(x => idList.Contains(x.ID));
 
@@ -75,7 +75,7 @@ namespace MessengerService.Controllers
 
             await _context.SaveChangesAsync();
 
-            return NoContent();
+            return await messages.Select(x => x.ID).ToListAsync();
         }
 
         [HttpPatch("mark-unread")]
@@ -115,7 +115,7 @@ namespace MessengerService.Controllers
                 Content = content,
                 SentTimestamp = DateTime.UtcNow,
             };
-            _context.Messages.Add(message);
+            _context.Entry(message).State = EntityState.Added;
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetMessage), new { id = message.ID }, message);
@@ -124,7 +124,16 @@ namespace MessengerService.Controllers
         [HttpDelete("{id}")]
         public async Task<ActionResult<IEnumerable<Guid>>> DeleteMessage(Guid id)
         {
-            return await DeleteMessages([id]);
+            var message = await _context.Messages.FindAsync(id);
+            if (message == null)
+            {
+                return NotFound();
+            }
+
+            _context.Entry(message).State = EntityState.Deleted;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
 
         [HttpDelete]
@@ -135,11 +144,15 @@ namespace MessengerService.Controllers
             {
                 return NotFound();
             }
+            var foundIds = await messages.Select(x => x.ID).ToListAsync();
 
-            _context.Messages.RemoveRange(messages);
+            foreach (var message in messages)
+            {
+                _context.Entry(message).State = EntityState.Deleted;
+            }
             await _context.SaveChangesAsync();
 
-            return await messages.Select(x => x.ID).ToListAsync();
+            return foundIds;
         }
 
         private async Task<ActionResult<IEnumerable<Message>>> GetMessagesHelper(DateTime? start = null, DateTime? end = null, string? userAddress = null, bool? unread = null, bool markAsRead = false)
