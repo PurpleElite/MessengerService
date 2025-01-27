@@ -1,7 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using MessengerService.Models;
-using System.Reflection.Metadata;
-using System.Net.Mail;
 
 var builder = WebApplication.CreateBuilder(args);
 
